@@ -7,7 +7,7 @@ st.title("Convertisseur CFONB EUR ➞ XPF")
 # Taux de conversion fixe
 conversion_rate = 0.00838
 
-uploaded_file = st.file_uploader("Importer un fichier CFONB (format .txt)", type=["txt"])
+uploaded_file = st.file_uploader("Importer un fichier CFONB", type=None)
 
 if uploaded_file:
     lines = uploaded_file.read().decode("iso-8859-1").splitlines()
