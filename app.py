@@ -84,9 +84,9 @@ if uploaded_file:
         pdf.cell(100, 8, "Total", border=1)
         pdf.cell(40, 8, f"{total_xpf:,}".replace(",", " "), border=1, ln=1)
 
-        pdf_buffer = BytesIO()
-        pdf.output(pdf_buffer)
-        pdf_buffer.seek(0)
+        pdf_bytes = pdf.output(dest="S").encode("latin1")
+        pdf_buffer = BytesIO(pdf_bytes)
+
 
         st.download_button(
             label="📄 Télécharger le PDF de contrôle",
