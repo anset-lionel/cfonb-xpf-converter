@@ -5,7 +5,7 @@ import pandas as pd
 from io import BytesIO
 from fpdf import FPDF
 
-st.title("Convertisseur CFONB EUR ➞ XPF + Contrôle PDF")
+st.title("Convertisseur CFONB EUR ➞ XPF + Contrôle PDF & Excel")
 
 # Taux de conversion fixe
 conversion_rate = 0.00838
@@ -19,11 +19,14 @@ if uploaded_file:
     lines = uploaded_file.read().decode("iso-8859-1").splitlines()
     converted_lines = []
     pdf_data = []
+    excel_data = []
 
     for line in lines:
         if line.startswith("0602"):
             try:
                 name = line[30:54].strip()
+                code_banque = line[149:154].strip()
+                num_compte = line[91:102].strip()
                 original_amount_str = line[102:118]
                 original_amount = int(original_amount_str)
 
@@ -35,6 +38,12 @@ if uploaded_file:
                 line = line[:102] + new_amount_str + line[118:]
 
                 pdf_data.append({"Nom-Prénom": name, "Montant (XPF)": xpf})
+                excel_data.append({
+                    "NOM PRENOM": name,
+                    "CODE BANQUE": code_banque,
+                    "NUM DE COMPTE": num_compte,
+                    "MONTANT DU VIREMENT": xpf
+                })
             except ValueError:
                 pass
 
@@ -87,10 +96,24 @@ if uploaded_file:
         pdf_bytes = pdf.output(dest="S").encode("latin1")
         pdf_buffer = BytesIO(pdf_bytes)
 
-
         st.download_button(
             label="📄 Télécharger le PDF de contrôle",
             data=pdf_buffer,
             file_name=f"controle_CFONB_{today_str}.pdf",
             mime="application/pdf"
+        )
+
+    # Génération du fichier Excel de contrôle
+    if excel_data:
+        df_excel = pd.DataFrame(excel_data)
+        excel_buffer = BytesIO()
+        with pd.ExcelWriter(excel_buffer, engine="xlsxwriter") as writer:
+            df_excel.to_excel(writer, index=False, sheet_name="Contrôle Virements")
+        excel_buffer.seek(0)
+
+        st.download_button(
+            label="📄 Télécharger le fichier Excel de contrôle",
+            data=excel_buffer,
+            file_name=f"controle_CFONB_{today_str}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
