@@ -27,16 +27,17 @@ if uploaded_file:
         if line.startswith("0302"):
             compte_emetteur = line[91:102].strip()
             date_jjmma = datetime.now().strftime("%d%j")[:5]  # JJ + MMA
-            raison_sociale = "ANSET SANTE".ljust(24)[:24]
+            raison_sociale = "ANSET ASSURANCES AREAS41" if compte_emetteur == "05034250001" else "ANSET ASSURANCES"
+            raison_sociale = raison_sociale.ljust(24)[:24]
             devise = "F"
             ligne_entete = (
                 "0302" +
                 " " * 22 +
                 date_jjmma +
                 raison_sociale +
-                " " * (81 - 31 - 24) +
+                " " * (81 - 30 - 24) +
                 devise +
-                line[82:160]  # conserver le reste inchangé
+                line[82:160]
             )
             continue
 
@@ -48,28 +49,21 @@ if uploaded_file:
                 original_amount_str = line[102:118]
                 original_amount = int(original_amount_str)
 
-                # Conversion avec arrondi supérieur
                 euros = original_amount / 100
                 xpf = math.ceil(euros / conversion_rate)
                 new_amount_str = str(xpf).rjust(16, "0")
 
-                # Construction de la ligne CFONB conforme à 160 caractères
+                # Construction stricte à partir de colonne 19 pour le nom/prénom
                 new_line = (
                     "0602" +
-                    " " * 8 +
-                    "489308" +
-                    " " * 6 +
+                    " " * 14 +  # jusqu'à colonne 18
                     name +
-                    banque +
-                    " " * 12 +
-                    "00000000000" +  # placeholder guichet
+                    " " * (91 - (4 + 14 + 24)) +
                     num_compte +
                     new_amount_str +
-                    "Rglt Anset Santé RS0".ljust(31)[:31] +
-                    "12239" +
-                    " " * 6
+                    " " * (160 - (91 + 11 + 16))
                 )
-                new_line = new_line[:160]  # s'assurer qu'on ne dépasse pas
+                new_line = new_line[:160]
 
                 converted_lines.append(new_line)
 
@@ -94,7 +88,6 @@ if uploaded_file:
         else:
             converted_lines.append(line[:160])
 
-    # Suggestion de correction du compte émetteur
     st.subheader("🔍 Vérification du compte émetteur")
     st.markdown(f"**Compte détecté dans le fichier :** `{compte_emetteur}`")
     compte_suggere = "05034250001" if compte_emetteur != "05034250001" else "50342500078"
@@ -107,7 +100,6 @@ if uploaded_file:
         ligne_entete = ligne_entete[:91] + compte_emetteur_corrige.rjust(11, "0") + ligne_entete[102:160]
         converted_lines.insert(0, ligne_entete[:160])
 
-    # Données statistiques pour panneau récapitulatif
     nb_virements = len(pdf_data)
     montant_total = sum([row["Montant (XPF)"] for row in pdf_data])
 
@@ -116,7 +108,6 @@ if uploaded_file:
     st.markdown(f"**Montant total des virements :** {montant_total:,} XPF".replace(",", " "))
     st.markdown(f"**Compte émetteur :** {compte_emetteur_corrige}")
 
-    # Nom de fichier texte de sortie
     today_str = datetime.now().strftime("%y%m%d")
     output_filename = f"VIRT_Cfonb_SAN{today_str}.txt"
     output_content = "\n".join(converted_lines)
@@ -128,7 +119,6 @@ if uploaded_file:
         mime="text/plain"
     )
 
-    # Génération du PDF de contrôle
     if pdf_data:
         df = pd.DataFrame(pdf_data)
         df = df.sort_values(by="Nom-Prénom")
@@ -161,7 +151,6 @@ if uploaded_file:
             mime="application/pdf"
         )
 
-    # Génération du fichier Excel de contrôle
     if excel_data:
         df_excel = pd.DataFrame(excel_data)
         excel_buffer = BytesIO()
