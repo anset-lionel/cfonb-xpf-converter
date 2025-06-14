@@ -83,8 +83,15 @@ if uploaded_file:
         else:
             converted_lines.append(line[:160])
 
-    # Proposer à l'utilisateur de modifier le compte émetteur
-    compte_emetteur_corrige = st.text_input("Compte émetteur d'origine détecté", value=compte_emetteur)
+    # Suggestion de correction du compte émetteur
+    st.subheader("🔍 Vérification du compte émetteur")
+    st.markdown(f"**Compte détecté dans le fichier :** `{compte_emetteur}`")
+    compte_suggere = "05034250001" if compte_emetteur != "05034250001" else "50342500078"
+    st.markdown(f"**Suggestion :** Souhaites-tu utiliser le compte proposé `{compte_suggere}` à la place ?")
+    use_suggested = st.radio("Utiliser le compte suggéré ?", ("Oui", "Non"))
+
+    compte_emetteur_corrige = compte_suggere if use_suggested == "Oui" else compte_emetteur
+
     if ligne_entete:
         ligne_entete = ligne_entete[:91] + compte_emetteur_corrige.rjust(11, "0") + ligne_entete[102:160]
         converted_lines.insert(0, ligne_entete[:160])
