@@ -26,8 +26,19 @@ if uploaded_file:
     for line in lines:
         if line.startswith("0302"):
             compte_emetteur = line[91:102].strip()
-            ligne_entete = line
-            continue  # on traitera cette ligne plus tard une fois le compte validé
+            date_jjmma = datetime.now().strftime("%d%j")[:5]  # JJ + MMA
+            raison_sociale = "ANSET SANTE".ljust(24)[:24]
+            devise = "F"
+            ligne_entete = (
+                "0302" +
+                " " * 22 +
+                date_jjmma +
+                raison_sociale +
+                " " * (81 - 31 - 24) +
+                devise +
+                line[82:160]  # conserver le reste inchangé
+            )
+            continue
 
         if line.startswith("0602"):
             try:
