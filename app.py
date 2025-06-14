@@ -5,7 +5,7 @@ import pandas as pd
 from io import BytesIO
 from fpdf import FPDF
 
-st.title("Ordre de virement SANTE ANSET")
+st.title("Convertisseur CFONB EUR ➞ XPF + Contrôle PDF & Excel")
 
 # Taux de conversion fixe
 conversion_rate = 0.00838
@@ -20,12 +20,8 @@ if uploaded_file:
     converted_lines = []
     pdf_data = []
     excel_data = []
-    compte_emetteur = "Non détecté"
 
     for line in lines:
-        if line.startswith("0302"):
-            compte_emetteur = line[91:102].strip()
-
         if line.startswith("0602"):
             try:
                 name = line[30:54].strip()
@@ -61,15 +57,6 @@ if uploaded_file:
                 pass
 
         converted_lines.append(line)
-
-    # Données statistiques pour panneau récapitulatif
-    nb_virements = len(pdf_data)
-    montant_total = sum([row["Montant (XPF)"] for row in pdf_data])
-
-    st.subheader("📊 Récapitulatif de l'ordre de virement")
-    st.markdown(f"**Nombre de personnes à virer :** {nb_virements}")
-    st.markdown(f"**Montant total des virements :** {montant_total:,} XPF".replace(",", " "))
-    st.markdown(f"**Compte émetteur :** {compte_emetteur}")
 
     # Nom de fichier texte de sortie
     today_str = datetime.now().strftime("%y%m%d")
