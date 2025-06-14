@@ -20,17 +20,20 @@ if uploaded_file:
     converted_lines = []
     pdf_data = []
     excel_data = []
-    compte_emetteur = "Non détecté"
+    compte_emetteur = ""
+    ligne_entete = ""
 
     for line in lines:
         if line.startswith("0302"):
             compte_emetteur = line[91:102].strip()
+            ligne_entete = line
+            continue  # on traitera cette ligne plus tard une fois le compte validé
 
         if line.startswith("0602"):
             try:
-                name = line[30:54].strip()
-                code_banque = line[149:154].strip()
-                num_compte = line[91:102].strip()
+                name = line[30:54].strip().ljust(24)[:24]
+                banque = line[54:74].strip().ljust(20)[:20]
+                num_compte = line[91:102].strip().rjust(11, "0")
                 original_amount_str = line[102:118]
                 original_amount = int(original_amount_str)
 
@@ -39,28 +42,52 @@ if uploaded_file:
                 xpf = math.ceil(euros / conversion_rate)
                 new_amount_str = str(xpf).rjust(16, "0")
 
-                line = line[:102] + new_amount_str + line[118:]
+                # Construction de la ligne CFONB conforme à 160 caractères
+                new_line = (
+                    "0602" +
+                    " " * 8 +
+                    "489308" +
+                    " " * 6 +
+                    name +
+                    banque +
+                    " " * 12 +
+                    "00000000000" +  # placeholder guichet
+                    num_compte +
+                    new_amount_str +
+                    "Rglt Anset Santé RS0".ljust(31)[:31] +
+                    "12239" +
+                    " " * 6
+                )
+                new_line = new_line[:160]  # s'assurer qu'on ne dépasse pas
 
-                pdf_data.append({"Nom-Prénom": name, "Montant (XPF)": xpf})
+                converted_lines.append(new_line)
+
+                pdf_data.append({"Nom-Prénom": name.strip(), "Montant (XPF)": xpf})
                 excel_data.append({
-                    "NOM PRENOM": name,
-                    "CODE BANQUE": code_banque,
+                    "NOM PRENOM": name.strip(),
+                    "CODE BANQUE": banque.strip(),
                     "NUM DE COMPTE": num_compte,
                     "MONTANT DU VIREMENT": xpf
                 })
             except ValueError:
                 pass
-
         elif line.startswith("0802"):
             try:
                 total_eur = int(line[102:118])
                 total_xpf = math.ceil((total_eur / 100) / conversion_rate)
                 new_total_str = str(total_xpf).rjust(16, "0")
                 line = line[:102] + new_total_str + line[118:]
+                converted_lines.append(line[:160])
             except ValueError:
-                pass
+                converted_lines.append(line)
+        else:
+            converted_lines.append(line[:160])
 
-        converted_lines.append(line)
+    # Proposer à l'utilisateur de modifier le compte émetteur
+    compte_emetteur_corrige = st.text_input("Compte émetteur d'origine détecté", value=compte_emetteur)
+    if ligne_entete:
+        ligne_entete = ligne_entete[:91] + compte_emetteur_corrige.rjust(11, "0") + ligne_entete[102:160]
+        converted_lines.insert(0, ligne_entete[:160])
 
     # Données statistiques pour panneau récapitulatif
     nb_virements = len(pdf_data)
@@ -69,7 +96,7 @@ if uploaded_file:
     st.subheader("📊 Récapitulatif de l'ordre de virement")
     st.markdown(f"**Nombre de personnes à virer :** {nb_virements}")
     st.markdown(f"**Montant total des virements :** {montant_total:,} XPF".replace(",", " "))
-    st.markdown(f"**Compte émetteur :** {compte_emetteur}")
+    st.markdown(f"**Compte émetteur :** {compte_emetteur_corrige}")
 
     # Nom de fichier texte de sortie
     today_str = datetime.now().strftime("%y%m%d")
