@@ -43,31 +43,29 @@ if uploaded_file:
 
         if line.startswith("0602"):
             try:
-                name = line[18:42].strip().ljust(24)[:24]  # colonne 19 à 42
-                banque = line[54:74].ljust(20)[:20]        # colonne 55 à 74
-                code_guichet = line[86:91]                 # colonne 87 à 91
-                num_compte = line[91:102]                  # colonne 92 à 102
-                original_amount_str = line[102:118]        # colonne 103 à 118
+                name = line[18:42].strip().ljust(24)[:24]      # colonne 19 à 42
+                banque = line[42:74].strip().ljust(32)[:32]     # colonne 43 à 74 (32 caractères au total)
+                code_guichet = line[74:79].strip().rjust(5, '0')  # colonne 75 à 79
+                num_compte = line[79:90].strip().rjust(11, '0')   # colonne 80 à 90
+                original_amount_str = line[90:106]               # colonne 91 à 106
                 original_amount = int(original_amount_str)
-                libelle = line[118:148].ljust(30)[:30]      # colonne 119 à 148
-                code_banque = line[150:160].strip().rjust(10)  # colonne 151 à 160
+                libelle = line[106:136].ljust(30)[:30]           # colonne 107 à 136
+                code_banque = line[150:160].strip().rjust(10)    # colonne 151 à 160
 
                 euros = original_amount / 100
                 xpf = math.ceil(euros / conversion_rate)
-                new_amount_str = str(xpf).rjust(16, "0")
+                new_amount_str = str(xpf).rjust(16, "0")        # colonne 91 à 106
 
                 new_line = (
-                    line[:18] +  # Zone libre 1 (inchangé)
-                    name +       # colonne 19 à 42
-                    line[42:54] +  # contenu intermédiaire
-                    banque +     # colonne 55 à 74
-                    line[74:86] +  # jusqu’à colonne 86
-                    code_guichet +
-                    num_compte +
-                    new_amount_str +
-                    libelle +
-                    line[148:150] +
-                    code_banque
+                    line[:18] +       # Zone libre 1
+                    name +            # colonne 19 à 42
+                    banque +          # colonne 43 à 74 (manuelle)
+                    code_guichet +    # colonne 75 à 79
+                    num_compte +      # colonne 80 à 90
+                    new_amount_str +  # colonne 91 à 106
+                    libelle +         # colonne 107 à 136
+                    line[136:150] +   # reste inchangé jusqu’à colonne 150
+                    code_banque       # colonne 151 à 160
                 )
                 new_line = new_line[:160]
 
