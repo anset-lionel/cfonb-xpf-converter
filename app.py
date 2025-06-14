@@ -53,15 +53,17 @@ if uploaded_file:
                 xpf = math.ceil(euros / conversion_rate)
                 new_amount_str = str(xpf).rjust(16, "0")
 
-                # Construction stricte à partir de colonne 19 pour le nom/prénom
+                # Construction stricte de la ligne
                 new_line = (
                     "0602" +
                     " " * 14 +  # jusqu'à colonne 18
                     name +
-                    " " * (91 - (4 + 14 + 24)) +
+                    " " * (55 - (4 + 14 + 24)) +  # jusqu'à colonne 54
+                    banque +
+                    " " * (87 - (55 + 20)) +
                     num_compte +
                     new_amount_str +
-                    " " * (160 - (91 + 11 + 16))
+                    " " * (160 - (87 + 11 + 16))
                 )
                 new_line = new_line[:160]
 
