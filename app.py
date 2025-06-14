@@ -24,28 +24,44 @@ if uploaded_file:
     for line in lines:
         if line.startswith("0602"):
             try:
-                name = line[30:54].strip()
-                code_banque = line[149:154].strip()
-                num_compte = line[91:102].strip()
-                original_amount_str = line[102:118]
-                original_amount = int(original_amount_str)
+                code_virement = line[:5]                     # 0602 + n° ligne
+                nom_prenom = line[18:42].ljust(24)           # Col 19–42
+                banque = line[42:74].ljust(32)               # Col 43–74
+                code_guichet = line[74:79].rjust(5, '0')     # Col 75–79
+                num_compte = line[79:90].rjust(11, '0')      # Col 80–90
+                original_amount_str = line[90:106]          # Col 91–106
+                libelle = line[106:136].ljust(30)            # Col 107–136
+                filler = line[136:150]                       # Col 137–150 (inchangé)
+                code_banque = line[150:160].rjust(10)        # Col 151–160
 
-                # Conversion avec arrondi supérieur
-                euros = original_amount / 100
+                euros = int(original_amount_str) / 100
                 xpf = math.ceil(euros / conversion_rate)
-                new_amount_str = str(xpf).rjust(16, "0")
+                montant_xpf = str(xpf).rjust(16, "0")       # Col 91–106
 
-                line = line[:102] + new_amount_str + line[118:]
+                new_line = (
+                    code_virement +
+                    " " * 13 +
+                    nom_prenom +
+                    banque +
+                    code_guichet +
+                    num_compte +
+                    montant_xpf +
+                    libelle +
+                    filler +
+                    code_banque
+                )[:160]
 
-                pdf_data.append({"Nom-Prénom": name, "Montant (XPF)": xpf})
+                converted_lines.append(new_line)
+
+                pdf_data.append({"Nom-Prénom": nom_prenom.strip(), "Montant (XPF)": xpf})
                 excel_data.append({
-                    "NOM PRENOM": name,
-                    "CODE BANQUE": code_banque,
-                    "NUM DE COMPTE": num_compte,
+                    "NOM PRENOM": nom_prenom.strip(),
+                    "CODE BANQUE": code_banque.strip(),
+                    "NUM DE COMPTE": num_compte.strip(),
                     "MONTANT DU VIREMENT": xpf
                 })
             except ValueError:
-                pass
+                converted_lines.append(line)
 
         elif line.startswith("0802"):
             try:
@@ -53,10 +69,25 @@ if uploaded_file:
                 total_xpf = math.ceil((total_eur / 100) / conversion_rate)
                 new_total_str = str(total_xpf).rjust(16, "0")
                 line = line[:102] + new_total_str + line[118:]
+                converted_lines.append(line[:160])
             except ValueError:
-                pass
+                converted_lines.append(line[:160])
 
-        converted_lines.append(line)
+        elif line.startswith("0302"):
+            today = datetime.now()
+            jjmma = today.strftime("%d%j")[:5]
+            compte_emetteur = "05034250001"
+            entete = (
+                "0302" + " " * 21 + jjmma +
+                "ANSET ASSURANCES".ljust(24) +
+                " " * 26 +
+                "F" + " " * 5 + "00001" + compte_emetteur.rjust(11, '0') +
+                " " * 47 + "17469"
+            )
+            converted_lines.append(entete[:160])
+
+        else:
+            converted_lines.append(line[:160])
 
     # Nom de fichier texte de sortie
     today_str = datetime.now().strftime("%y%m%d")
