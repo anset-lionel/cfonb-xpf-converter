@@ -45,6 +45,7 @@ if uploaded_file:
             try:
                 name = line[30:54].strip().ljust(24)[:24]
                 banque = line[54:74].strip().ljust(20)[:20]
+                code_guichet = line[86:91].strip().rjust(5, "0")
                 num_compte = line[91:102].strip().rjust(11, "0")
                 original_amount_str = line[102:118]
                 original_amount = int(original_amount_str)
@@ -53,17 +54,20 @@ if uploaded_file:
                 xpf = math.ceil(euros / conversion_rate)
                 new_amount_str = str(xpf).rjust(16, "0")
 
-                # Construction stricte de la ligne
+                # Construction stricte de la ligne CFONB 160 caractères
                 new_line = (
                     "0602" +
                     " " * 14 +  # jusqu'à colonne 18
                     name +
-                    " " * (55 - (4 + 14 + 24)) +  # jusqu'à colonne 54
+                    " " * (55 - (4 + 14 + 24)) +
                     banque +
                     " " * (87 - (55 + 20)) +
+                    code_guichet +
                     num_compte +
                     new_amount_str +
-                    " " * (160 - (87 + 11 + 16))
+                    " " * (150 - (87 + 5 + 11 + 16)) +
+                    banque[:5].ljust(10) +  # code banque position 150 (colonne 151)
+                    " " * (160 - 150 - 10)
                 )
                 new_line = new_line[:160]
 
