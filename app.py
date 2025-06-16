@@ -18,37 +18,40 @@ if uploaded_file:
         code_type = line[:4]
 
         if code_type == "0302":
-            converted_lines.append(line)
+            # Supprimer toute sous-zone contenant "489308"
+            cleaned_line = line.replace("489308", "       ")  # 7 espaces pour conserver la position
+            converted_lines.append(cleaned_line)
 
         elif code_type == "0602":
-            # Extraire le montant en euro (supposé être à la position 100-114 inclus)
-            montant_euro_str = line[100:114]
+            # Supprimer la colonne contenant "489308..."
+            new_line = line[:4] + "       " + line[11:]  # Enlève de la position 4 à 11 (inclus)
+
+            # Extraire et convertir le montant en euro à la position 100-114
+            montant_euro_str = new_line[100:114]
             try:
                 montant_euro = int(montant_euro_str)
                 montant_xpf = int(round(montant_euro * CONVERSION_RATE))
                 total_amount += montant_xpf
 
-                # Reconstituer la ligne avec le montant XPF au même emplacement
+                # Reconstituer la ligne avec le montant XPF
                 new_montant_str = str(montant_xpf).rjust(14, '0')
-                new_line = line[:100] + new_montant_str + line[114:160]
-                converted_lines.append(new_line)
+                final_line = new_line[:100] + new_montant_str + new_line[114:160]
+                converted_lines.append(final_line)
             except ValueError:
                 st.error(f"Montant invalide dans la ligne : {line}")
-                converted_lines.append(line)
+                converted_lines.append(new_line)
 
         elif code_type == "0802":
-            # Ligne de total, sera régénérée à la fin si nécessaire
-            continue
+            continue  # on va recréer cette ligne proprement après
 
         else:
-            # Lignes non identifiées, ajoutées telles quelles
             converted_lines.append(line)
 
-    # Ajouter la ligne 0802 (total)
+    # Ajouter une ligne 0802 de total
     total_line = f"0802TOTAL{' ' * 87}{str(total_amount).rjust(14, '0')}{' ' * (160 - 109)}"
     converted_lines.append(total_line)
 
-    # Afficher un aperçu
+    # Aperçu
     st.subheader("Aperçu du fichier converti")
     for l in converted_lines[:10]:
         st.text(l)
