@@ -6,7 +6,7 @@ CONVERSION_RATE = 119.33  # 1 EUR = 119.33 XPF
 
 st.title("Convertisseur CFONB Euro vers XPF")
 
-uploaded_file = st.file_uploader("Téléversez votre fichier CFONB en euros", type=["txt", ""])
+uploaded_file = st.file_uploader("Téléversez votre fichier CFONB en euros", type=["txt"])
 
 if uploaded_file:
     raw_lines = uploaded_file.read().decode("latin-1").splitlines()
