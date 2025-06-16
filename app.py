@@ -1,150 +1,66 @@
 import streamlit as st
-from datetime import datetime
-import math
-import pandas as pd
-from io import BytesIO
-from fpdf import FPDF
+import datetime
+import io
 
-st.title("Convertisseur CFONB EUR ➞ XPF + Contrôle PDF & Excel")
+CONVERSION_RATE = 119.33  # 1 EUR = 119.33 XPF
 
-# Taux de conversion fixe
-conversion_rate = 0.00838
+st.title("Convertisseur CFONB Euro vers XPF")
 
-uploaded_file = st.file_uploader("Importer un fichier CFONB", type=None)
+uploaded_file = st.file_uploader("Téléversez votre fichier CFONB en euros", type=["txt", ""])
 
 if uploaded_file:
-    if len(uploaded_file.name.strip()) == 0:
-        st.warning("⚠️ Le fichier n'a pas d'extension, vérifie bien qu'il s'agit d'un fichier CFONB.")
-
-    lines = uploaded_file.read().decode("iso-8859-1").splitlines()
+    raw_lines = uploaded_file.read().decode("latin-1").splitlines()
     converted_lines = []
-    pdf_data = []
-    excel_data = []
+    total_amount = 0
 
-    for line in lines:
-        if line.startswith("0602"):
+    for line in raw_lines:
+        line = line.ljust(160)[:160]  # Assurer une longueur de 160
+        code_type = line[:4]
+
+        if code_type == "0302":
+            converted_lines.append(line)
+
+        elif code_type == "0602":
+            # Extraire le montant en euro (supposé être à la position 100-114 inclus)
+            montant_euro_str = line[100:114]
             try:
-                code_virement = line[:5]                     # 0602 + n° ligne
-                nom_prenom = line[18:42].ljust(24)           # Col 19–42
-                banque = line[42:74].ljust(32)               # Col 43–74
-                code_guichet = line[74:79].rjust(5, '0')     # Col 75–79
-                num_compte = line[79:90].rjust(11, '0')      # Col 80–90
-                original_amount_str = line[90:106]          # Col 91–106
-                libelle = line[106:136].ljust(30)            # Col 107–136
-                filler = line[136:150]                       # Col 137–150 (inchangé)
-                code_banque = line[150:160].rjust(10)        # Col 151–160
+                montant_euro = int(montant_euro_str)
+                montant_xpf = int(round(montant_euro * CONVERSION_RATE))
+                total_amount += montant_xpf
 
-                euros = int(original_amount_str) / 100
-                xpf = math.ceil(euros / conversion_rate)
-                montant_xpf = str(xpf).rjust(16, "0")       # Col 91–106
-
-                new_line = (
-                    code_virement +
-                    " " * 13 +
-                    nom_prenom +
-                    banque +
-                    code_guichet +
-                    num_compte +
-                    montant_xpf +
-                    libelle +
-                    filler +
-                    code_banque
-                )[:160]
-
+                # Reconstituer la ligne avec le montant XPF au même emplacement
+                new_montant_str = str(montant_xpf).rjust(14, '0')
+                new_line = line[:100] + new_montant_str + line[114:160]
                 converted_lines.append(new_line)
-
-                pdf_data.append({"Nom-Prénom": nom_prenom.strip(), "Montant (XPF)": xpf})
-                excel_data.append({
-                    "NOM PRENOM": nom_prenom.strip(),
-                    "CODE BANQUE": code_banque.strip(),
-                    "NUM DE COMPTE": num_compte.strip(),
-                    "MONTANT DU VIREMENT": xpf
-                })
             except ValueError:
+                st.error(f"Montant invalide dans la ligne : {line}")
                 converted_lines.append(line)
 
-        elif line.startswith("0802"):
-            try:
-                total_eur = int(line[102:118])
-                total_xpf = math.ceil((total_eur / 100) / conversion_rate)
-                new_total_str = str(total_xpf).rjust(16, "0")
-                line = line[:102] + new_total_str + line[118:]
-                converted_lines.append(line[:160])
-            except ValueError:
-                converted_lines.append(line[:160])
-
-        elif line.startswith("0302"):
-            today = datetime.now()
-            jjmma = today.strftime("%d%j")[:5]
-            compte_emetteur = "05034250001"
-            entete = (
-                "0302" + " " * 21 + jjmma +
-                "ANSET ASSURANCES".ljust(24) +
-                " " * 26 +
-                "F" + " " * 5 + "00001" + compte_emetteur.rjust(11, '0') +
-                " " * 47 + "17469"
-            )
-            converted_lines.append(entete[:160])
+        elif code_type == "0802":
+            # Ligne de total, sera régénérée à la fin si nécessaire
+            continue
 
         else:
-            converted_lines.append(line[:160])
+            # Lignes non identifiées, ajoutées telles quelles
+            converted_lines.append(line)
 
-    # Nom de fichier texte de sortie
-    today_str = datetime.now().strftime("%y%m%d")
-    output_filename = f"VIRT_Cfonb_SAN{today_str}.txt"
-    output_content = "\n".join(converted_lines)
+    # Ajouter la ligne 0802 (total)
+    total_line = f"0802TOTAL{' ' * 87}{str(total_amount).rjust(14, '0')}{' ' * (160 - 109)}"
+    converted_lines.append(total_line)
+
+    # Afficher un aperçu
+    st.subheader("Aperçu du fichier converti")
+    for l in converted_lines[:10]:
+        st.text(l)
+
+    # Télécharger le fichier
+    output = io.StringIO()
+    for line in converted_lines:
+        output.write(line + "\n")
 
     st.download_button(
-        label="💾 Télécharger le fichier converti",
-        data=output_content,
-        file_name=output_filename,
+        label="Télécharger le fichier CFONB converti",
+        data=output.getvalue(),
+        file_name="cfobn_xpf_converti.txt",
         mime="text/plain"
     )
-
-    # Génération du PDF de contrôle
-    if pdf_data:
-        df = pd.DataFrame(pdf_data)
-        df = df.sort_values(by="Nom-Prénom")
-        total_xpf = df["Montant (XPF)"].sum()
-
-        class PDF(FPDF):
-            def header(self):
-                self.set_font("Arial", "B", 12)
-                self.cell(0, 10, "Contrôle des virements CFONB", 0, 1, "C")
-
-        pdf = PDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=10)
-
-        for _, row in df.iterrows():
-            pdf.cell(100, 8, row["Nom-Prénom"], border=1)
-            pdf.cell(40, 8, f"{row['Montant (XPF)']:,}".replace(",", " "), border=1, ln=1)
-
-        pdf.set_font("Arial", "B", 10)
-        pdf.cell(100, 8, "Total", border=1)
-        pdf.cell(40, 8, f"{total_xpf:,}".replace(",", " "), border=1, ln=1)
-
-        pdf_bytes = pdf.output(dest="S").encode("latin1")
-        pdf_buffer = BytesIO(pdf_bytes)
-
-        st.download_button(
-            label="📄 Télécharger le PDF de contrôle",
-            data=pdf_buffer,
-            file_name=f"controle_CFONB_{today_str}.pdf",
-            mime="application/pdf"
-        )
-
-    # Génération du fichier Excel de contrôle
-    if excel_data:
-        df_excel = pd.DataFrame(excel_data)
-        excel_buffer = BytesIO()
-        with pd.ExcelWriter(excel_buffer, engine="xlsxwriter") as writer:
-            df_excel.to_excel(writer, index=False, sheet_name="Contrôle Virements")
-        excel_buffer.seek(0)
-
-        st.download_button(
-            label="📄 Télécharger le fichier Excel de contrôle",
-            data=excel_buffer,
-            file_name=f"controle_CFONB_{today_str}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
