@@ -1,6 +1,7 @@
 import streamlit as st
 import datetime
 import io
+import re
 
 CONVERSION_RATE = 119.33  # 1 EUR = 119.33 XPF
 
@@ -18,16 +19,16 @@ if uploaded_file:
         code_type = line[:4]
 
         if code_type == "0302":
-            # Supprimer toute sous-zone contenant "489308"
-            cleaned_line = line.replace("489308", "       ")  # 7 espaces pour conserver la position
-            converted_lines.append(cleaned_line)
+            cleaned_line = re.sub(r"489308\d*", " " * 12, line)  # supprime 489308 et variantes numérotées
+            converted_lines.append(cleaned_line.ljust(160)[:160])
 
         elif code_type == "0602":
-            # Supprimer la colonne contenant "489308..."
-            new_line = line[:4] + "       " + line[11:]  # Enlève de la position 4 à 11 (inclus)
+            # Supprimer les zones contenant 489308 ou 48930845 et leur suffixe numérique éventuel
+            clean_line = re.sub(r"489308\d*-?\d*", " " * 23, line)
+            clean_line = clean_line.ljust(160)[:160]
 
             # Extraire et convertir le montant en euro à la position 100-114
-            montant_euro_str = new_line[100:114]
+            montant_euro_str = clean_line[100:114]
             try:
                 montant_euro = int(montant_euro_str)
                 montant_xpf = int(round(montant_euro * CONVERSION_RATE))
@@ -35,11 +36,11 @@ if uploaded_file:
 
                 # Reconstituer la ligne avec le montant XPF
                 new_montant_str = str(montant_xpf).rjust(14, '0')
-                final_line = new_line[:100] + new_montant_str + new_line[114:160]
+                final_line = clean_line[:100] + new_montant_str + clean_line[114:160]
                 converted_lines.append(final_line)
             except ValueError:
                 st.error(f"Montant invalide dans la ligne : {line}")
-                converted_lines.append(new_line)
+                converted_lines.append(clean_line)
 
         elif code_type == "0802":
             continue  # on va recréer cette ligne proprement après
