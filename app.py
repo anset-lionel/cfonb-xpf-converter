@@ -20,23 +20,23 @@ if uploaded_file:
     converted_lines = []
     pdf_data = []
     excel_data = []
+    erreurs_format = []
 
-    for line in lines:
+    for i, line in enumerate(lines):
         if line.startswith("0602"):
             try:
-                code_virement = line[:5]                     # 0602 + n° ligne
+                code_virement = "0602"  # Code fixe pour identifiant de ligne CFONB
                 nom_prenom = line[18:42].ljust(24)           # Col 19–42
-                banque = line[42:74].ljust(32)               # Col 43–74
-                code_guichet = line[74:79].rjust(5, '0')     # Col 75–79
-                num_compte = line[79:90].rjust(11, '0')      # Col 80–90
-                original_amount_str = line[90:106]          # Col 91–106
-                libelle = line[106:136].ljust(30)            # Col 107–136
-                filler = line[136:150]                       # Col 137–150 (inchangé)
-                code_banque = line[150:160].rjust(10)        # Col 151–160
-
+                banque = line[42:74].strip().ljust(32)       # Col 43–74
+                code_guichet = line[74:79].strip().rjust(5, '0')  # Col 75–79
+                num_compte = line[79:90].strip().rjust(11, '0')   # Col 80–90
+                original_amount_str = line[90:106]               # Col 91–106
                 euros = int(original_amount_str) / 100
                 xpf = math.ceil(euros / conversion_rate)
-                montant_xpf = str(xpf).rjust(16, "0")       # Col 91–106
+                montant_xpf = str(xpf).rjust(16, "0")            # Col 91–106
+                libelle = line[106:136].ljust(30)[:30]            # Col 107–136
+                filler = " " * 14                                 # Col 137–150
+                code_banque = line[150:160].strip().rjust(10)     # Col 151–160
 
                 new_line = (
                     code_virement +
@@ -50,6 +50,9 @@ if uploaded_file:
                     filler +
                     code_banque
                 )[:160]
+
+                if len(new_line) != 160:
+                    erreurs_format.append((i + 1, len(new_line), new_line))
 
                 converted_lines.append(new_line)
 
@@ -69,6 +72,8 @@ if uploaded_file:
                 total_xpf = math.ceil((total_eur / 100) / conversion_rate)
                 new_total_str = str(total_xpf).rjust(16, "0")
                 line = line[:102] + new_total_str + line[118:]
+                if len(line[:160]) != 160:
+                    erreurs_format.append((i + 1, len(line[:160]), line[:160]))
                 converted_lines.append(line[:160])
             except ValueError:
                 converted_lines.append(line[:160])
@@ -87,6 +92,8 @@ if uploaded_file:
             converted_lines.append(entete[:160])
 
         else:
+            if len(line[:160]) != 160:
+                erreurs_format.append((i + 1, len(line[:160]), line[:160]))
             converted_lines.append(line[:160])
 
     # Nom de fichier texte de sortie
@@ -100,6 +107,12 @@ if uploaded_file:
         file_name=output_filename,
         mime="text/plain"
     )
+
+    # Affichage des erreurs de longueur
+    if erreurs_format:
+        st.error("❌ Certaines lignes ne font pas 160 caractères :")
+        for num_ligne, longueur, contenu in erreurs_format:
+            st.code(f"Ligne {num_ligne} ({longueur} car.): {contenu}")
 
     # Génération du PDF de contrôle
     if pdf_data:
