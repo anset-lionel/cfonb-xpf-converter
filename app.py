@@ -5,7 +5,7 @@ import pandas as pd
 from io import BytesIO
 from fpdf import FPDF
 
-st.title("Convertisseur CFONB EUR ➞ XPF — Format strict 160 colonnes")
+st.title("Convertisseur CFONB EUR ➞ XPF — Format officiel 160 colonnes")
 
 conversion_rate = 0.00838
 
@@ -17,6 +17,7 @@ if uploaded_file:
     pdf_data = []
     excel_data = []
     erreurs_format = []
+    total_xpf = 0
 
     for i, line in enumerate(lines):
         if line.startswith("0302"):
@@ -41,9 +42,8 @@ if uploaded_file:
 
         elif line.startswith("0602"):
             try:
-                # Colonnes fixes selon spécification CFONB
                 code_mouvement = "0602"
-                espace_vide = " " * 26  # col 5 à 30 exclues
+                espace_vide = " " * 26  # col 5 à 30
 
                 nom_prenom = line[30:54].strip().upper().ljust(24)
                 banque = line[54:86].strip().upper().ljust(32)
@@ -52,6 +52,7 @@ if uploaded_file:
 
                 montant_eur_cents = int(line[102:118])
                 montant_xpf = math.ceil((montant_eur_cents / 100) / conversion_rate)
+                total_xpf += montant_xpf
                 montant_cfonb = str(montant_xpf).rjust(16, "0")
 
                 libelle = "Rglt Anset Santé RS0".ljust(31)
@@ -66,9 +67,8 @@ if uploaded_file:
                     compte +
                     montant_cfonb +
                     libelle +
-                    code_banque +
-                    " " * (160 - 154)  # compléter jusqu’à 160 si nécessaire
-                )[:160]
+                    code_banque
+                ).ljust(160)[:160]
 
                 if len(new_line) != 160:
                     erreurs_format.append((i + 1, len(new_line), new_line))
@@ -82,15 +82,14 @@ if uploaded_file:
                     "NUM DE COMPTE": compte.strip(),
                     "MONTANT DU VIREMENT": montant_xpf
                 })
+
             except Exception as e:
                 erreurs_format.append((i + 1, len(line), f"[ERREUR PARSE] {line}"))
                 converted_lines.append(line[:160])
 
         elif line.startswith("0802"):
             try:
-                montant_total_eur = int(line[102:118])
-                montant_total_xpf = math.ceil((montant_total_eur / 100) / conversion_rate)
-                montant_total_str = str(montant_total_xpf).rjust(16, "0")
+                montant_total_str = str(total_xpf).rjust(16, "0")
                 new_footer = line[:102] + montant_total_str + line[118:]
                 converted_lines.append(new_footer[:160])
             except:
@@ -114,8 +113,6 @@ if uploaded_file:
     # Export PDF
     if pdf_data:
         df = pd.DataFrame(pdf_data).sort_values(by="Nom-Prénom")
-        total = df["Montant (XPF)"].sum()
-
         class PDF(FPDF):
             def header(self):
                 self.set_font("Arial", "B", 12)
@@ -131,7 +128,7 @@ if uploaded_file:
 
         pdf.set_font("Arial", "B", 10)
         pdf.cell(100, 8, "Total", border=1)
-        pdf.cell(40, 8, f"{total:,}".replace(",", " "), border=1, ln=1)
+        pdf.cell(40, 8, f"{total_xpf:,}".replace(",", " "), border=1, ln=1)
 
         pdf_bytes = pdf.output(dest="S").encode("latin1")
         st.download_button(
