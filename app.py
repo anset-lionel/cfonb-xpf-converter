@@ -1,70 +1,41 @@
 import streamlit as st
-import datetime
-import io
-import re
 
-CONVERSION_RATE = 119.33  # 1 EUR = 119.33 XPF
+TAUX = 119.3317  # Taux fixe euro/XPF
 
-st.title("Convertisseur CFONB Euro vers XPF")
+def convert_euro_to_xpf(euro_cents):
+    euro = int(euro_cents)
+    montant_xpf = round((euro / 100) * TAUX)
+    # CFONB: montant sur 16 positions, padding à gauche de zéros
+    return str(montant_xpf).rjust(16, "0")
 
-uploaded_file = st.file_uploader("Téléversez votre fichier CFONB en euros")
-
-if uploaded_file:
-    raw_lines = uploaded_file.read().decode("latin-1").splitlines()
-    converted_lines = []
-    total_amount = 0
-
-    for line in raw_lines:
-        line = line.ljust(160)[:160]  # Assurer une longueur de 160
-        code_type = line[:4]
-
-        if code_type == "0302":
-            cleaned_line = re.sub(r"489308\d*", " " * 12, line)  # supprime 489308 et variantes numérotées
-            converted_lines.append(cleaned_line.ljust(160)[:160])
-
-        elif code_type == "0602":
-            # Supprimer les zones contenant 489308 ou 48930845 et leur suffixe numérique éventuel
-            clean_line = re.sub(r"489308\d*-?\d*", " " * 23, line)
-            clean_line = clean_line.ljust(160)[:160]
-
-            # Extraire et convertir le montant en euro à la position 100-114
-            montant_euro_str = clean_line[100:114]
-            try:
-                montant_euro = int(montant_euro_str)
-                montant_xpf = int(round(montant_euro * CONVERSION_RATE))
-                total_amount += montant_xpf
-
-                # Reconstituer la ligne avec le montant XPF
-                new_montant_str = str(montant_xpf).rjust(14, '0')
-                final_line = clean_line[:100] + new_montant_str + clean_line[114:160]
-                converted_lines.append(final_line)
-            except ValueError:
-                st.error(f"Montant invalide dans la ligne : {line}")
-                converted_lines.append(clean_line)
-
-        elif code_type == "0802":
-            continue  # on va recréer cette ligne proprement après
-
+def convert_cfonb(content):
+    lines = content.decode("utf-8").splitlines()
+    new_lines = []
+    for line in lines:
+        # On convertit uniquement les lignes de virement (ex: type 0602)
+        if line.startswith("0602"):
+            # À AJUSTER selon ton fichier source : ici on suppose que le montant est de la position 66 à 81 (index 65 à 81 en Python, car Python commence à 0)
+            euro_cents = line[65:81]
+            xpf = convert_euro_to_xpf(euro_cents)
+            new_line = line[:65] + xpf + line[81:]
+            new_lines.append(new_line)
         else:
-            converted_lines.append(line)
+            new_lines.append(line)
+    return "\n".join(new_lines)
 
-    # Ajouter une ligne 0802 de total
-    total_line = f"0802TOTAL{' ' * 87}{str(total_amount).rjust(14, '0')}{' ' * (160 - 109)}"
-    converted_lines.append(total_line)
+st.title("Convertisseur CFONB Euro → XPF")
+st.markdown("""
+Charge ton **fichier CFONB extrait en euro**.  
+Le montant de chaque virement sera converti en XPF, format strict **CFONB**, prêt à importer pour la Polynésie.
+""")
 
-    # Aperçu
-    st.subheader("Aperçu du fichier converti")
-    for l in converted_lines[:10]:
-        st.text(l)
-
-    # Télécharger le fichier
-    output = io.StringIO()
-    for line in converted_lines:
-        output.write(line + "\n")
-
+uploaded_file = st.file_uploader("Dépose ici ton fichier CFONB en euros (.txt)", type="txt")
+if uploaded_file:
+    new_content = convert_cfonb(uploaded_file.read())
     st.download_button(
-        label="Télécharger le fichier CFONB converti",
-        data=output.getvalue(),
-        file_name="cfobn_xpf_converti.txt",
+        label="Télécharger le fichier CFONB converti (XPF)",
+        data=new_content,
+        file_name="CFONB_XPF.txt",
         mime="text/plain"
     )
+    st.code(new_content[:1000])  # aperçu des premières lignes
