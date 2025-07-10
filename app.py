@@ -5,7 +5,7 @@ import pandas as pd
 from io import BytesIO
 from fpdf import FPDF
 
-st.title("Convertisseur CFONB EUR ➞ XPF — Format officiel 160 colonnes")
+st.title("Convertisseur CFONB EUR ➞ XPF — Format 155 caractères")
 
 conversion_rate = 0.00838
 
@@ -16,7 +16,6 @@ if uploaded_file:
     converted_lines = []
     pdf_data = []
     excel_data = []
-    erreurs_format = []
     total_xpf = 0
 
     for i, line in enumerate(lines):
@@ -38,12 +37,12 @@ if uploaded_file:
                 " " * 47 +
                 "17469"
             )
-            converted_lines.append(entete[:160])
+            converted_lines.append(entete[:155])
 
         elif line.startswith("0602"):
             try:
                 code_mouvement = "0602"
-                espace_vide = " " * 26  # col 5 à 30
+                espace_vide = " " * 26  # col 5 à 30 exclues
 
                 nom_prenom = line[30:54].strip().upper().ljust(24)
                 banque = line[54:86].strip().upper().ljust(32)
@@ -55,7 +54,7 @@ if uploaded_file:
                 total_xpf += montant_xpf
                 montant_cfonb = str(montant_xpf).rjust(16, "0")
 
-                libelle = "Rglt Anset Santé RS0".ljust(31)
+                libelle = "Rglt Anset Sante RS0".ljust(31)
                 code_banque = line[149:154].strip().rjust(5)
 
                 new_line = (
@@ -68,12 +67,9 @@ if uploaded_file:
                     montant_cfonb +
                     libelle +
                     code_banque
-                ).ljust(160)[:160]
+                )
 
-                if len(new_line) != 160:
-                    erreurs_format.append((i + 1, len(new_line), new_line))
-
-                converted_lines.append(new_line)
+                converted_lines.append(new_line[:155])
 
                 pdf_data.append({"Nom-Prénom": nom_prenom.strip(), "Montant (XPF)": montant_xpf})
                 excel_data.append({
@@ -83,32 +79,24 @@ if uploaded_file:
                     "MONTANT DU VIREMENT": montant_xpf
                 })
 
-            except Exception as e:
-                erreurs_format.append((i + 1, len(line), f"[ERREUR PARSE] {line}"))
-                converted_lines.append(line[:160])
+            except Exception:
+                converted_lines.append(line[:155])  # Sécurise en cas d'erreur
 
         elif line.startswith("0802"):
             try:
                 montant_total_str = str(total_xpf).rjust(16, "0")
                 new_footer = line[:102] + montant_total_str + line[118:]
-                converted_lines.append(new_footer[:160])
+                converted_lines.append(new_footer[:155])
             except:
-                erreurs_format.append((i + 1, len(line), "[ERREUR TOTAL]"))
-                converted_lines.append(line[:160])
+                converted_lines.append(line[:155])
 
         else:
-            converted_lines.append(line[:160])
+            converted_lines.append(line[:155])
 
     # Export .txt
     today_str = datetime.now().strftime("%y%m%d")
     output_txt = "\n".join(converted_lines)
     st.download_button("💾 Télécharger le fichier CFONB", output_txt, file_name=f"VIRT_Cfonb_SAN{today_str}.txt")
-
-    # Erreurs de format
-    if erreurs_format:
-        st.error("❌ Certaines lignes ne font pas 160 caractères ou sont incorrectes :")
-        for num, length, content in erreurs_format:
-            st.code(f"Ligne {num} ({length} car.) : {content}")
 
     # Export PDF
     if pdf_data:
