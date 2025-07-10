@@ -40,6 +40,10 @@ if uploaded_file:
 
                 new_line = (
                     code_virement +
+                    "" +  # suppression des 13 espaces
+                    " " * 25 +  # effacer les 25 caractères suivants sauf pour première/dernière ligne si besoin
+
+                    code_virement +
                     " " * 13 +
                     nom_prenom +
                     banque +
